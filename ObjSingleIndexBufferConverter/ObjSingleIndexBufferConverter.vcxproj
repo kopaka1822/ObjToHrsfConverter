@@ -69,7 +69,18 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+    <IncludePath>D:\git\ObjSingleIndexBufferConverter\hrsf\include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <IncludePath>D:\git\ObjSingleIndexBufferConverter\hrsf\include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <IncludePath>D:\git\ObjSingleIndexBufferConverter\hrsf\include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <IncludePath>D:\git\ObjSingleIndexBufferConverter\hrsf\include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
@@ -120,17 +131,22 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\tinyobj\tiny_obj_loader.cc" />
+    <ClCompile Include="Console.cpp" />
     <ClCompile Include="Converter.cpp" />
     <ClCompile Include="main.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ArgumentSet.h" />
+    <ClInclude Include="Console.h" />
     <ClInclude Include="Converter.h" />
     <ClInclude Include="FileHelper.h" />
     <ClInclude Include="glm.h" />
-    <ClInclude Include="Loader.h" />
     <ClInclude Include="tinyobjhash.h" />
-    <ClInclude Include="VertexIterator.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\hrsf\dependencies\bmf\BinaryMeshFormat\BinaryMeshFormat.vcxproj">
+      <Project>{45231001-f53f-4efd-8194-25a0c34159d1}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

@@ -3,9 +3,7 @@
 #include <algorithm>
 #include "glm.h"
 #include <iostream>
-#include "VertexIterator.h"
-#include <fstream>
-#include "Loader.h"
+#include "Console.h"
 
 Converter::Converter()
 	:
@@ -19,6 +17,8 @@ RemoveTolerance(0.00001f)
 
 void Converter::load(const std::string& filename)
 {
+	Console::info("loading " + filename);
+
 	const auto inputDirectory = getDirectory(filename);
 	std::string warnings;
 	std::string errors;
@@ -27,11 +27,11 @@ void Converter::load(const std::string& filename)
 	if (!res || !errors.empty())
 		throw std::runtime_error("obj loader: " + errors);
 
-	printf("# of vertices  = %d\n", static_cast<int>(m_attrib.vertices.size()) / 3);
-	printf("# of normals   = %d\n", static_cast<int>(m_attrib.normals.size()) / 3);
-	printf("# of texcoords = %d\n", static_cast<int>(m_attrib.texcoords.size()) / 2);
-	printf("# of materials = %d\n", static_cast<int>(m_materials.size()));
-	printf("# of shapes    = %d\n", static_cast<int>(m_shapes.size()));
+	Console::info("# of vertices  = " + std::to_string(static_cast<int>(m_attrib.vertices.size()) / 3));
+	Console::info("# of normals   = " + std::to_string(static_cast<int>(m_attrib.normals.size()) / 3));
+	Console::info("# of texcoords = " + std::to_string(static_cast<int>(m_attrib.texcoords.size()) / 2));
+	Console::info("# of materials = " + std::to_string(static_cast<int>(m_materials.size())));
+	Console::info("# of shapes    = " + std::to_string(static_cast<int>(m_shapes.size())));
 
 	// count triangles
 	size_t numIndices = 0;
@@ -39,50 +39,191 @@ void Converter::load(const std::string& filename)
 	{
 		numIndices += s.mesh.indices.size();
 	}
-	printf("# of indices   = %d\n", int(numIndices));
-	printf("# of triangles = %d\n", int(numIndices / 3));
+	Console::info("# of indices   = " + std::to_string(numIndices));
+	Console::info("# of triangles = " + std::to_string(numIndices / 3));
 
 	if (m_attrib.vertices.empty())
 		throw std::runtime_error("no vertices found");
 }
 
-void Converter::convert()
+void Converter::convert(const std::string& filename) 
 {
+	Console::info("converting to hrsf");
+	hrsf::SceneFormat scene(convertMesh(), getCamera(), getLights(), getMaterials(), getEnvironment());
+	scene.verify();
+
+	Console::info("removing unused materials");
+	scene.removeUnusedMaterials();
+
+	Console::info("writing to " + filename);
+	scene.save(filename);
+}
+
+bmf::BinaryMesh Converter::convertMesh() const
+{
+	uint32_t requestedAttribs = bmf::Position;
 	if(UseNormals)
-	{
-		generateMissingNormals();
-	}
+		requestedAttribs |= bmf::Normal;
 
 	if(UseTexcoords)
-	{
-		generateMissingTexcoords();
-	}
+		requestedAttribs |= bmf::Texcoord0;
 
-	if(RemoveDuplicates)
-	{
-		removeDuplicates();
-	}
-
+	Console::info("creating meshes");
+	// convert all shapes into seperate binary meshes
+	std::vector<bmf::BinaryMesh> meshes;
 	for (const auto& s : m_shapes)
 	{
-		// add new shape indices
-		m_outShapeIndices.emplace_back();
-		
-		for(auto index : s.mesh.indices)
+		uint32_t attribs = bmf::Position;
+		if (s.mesh.indices[0].normal_index >= 0 && UseNormals)
+			attribs |= bmf::Normal;
+		if (s.mesh.indices[0].texcoord_index >= 0 && UseTexcoords)
+			attribs |= bmf::Texcoord0;
+
+		// for now brute force create mesh
+		std::vector<float> vertices;
+		std::vector<uint32_t> indices;
+
+		indices.reserve(s.mesh.indices.size());
+		vertices.reserve(s.mesh.indices.size() * bmf::getAttributeElementStride(attribs));
+		for(const auto & i : s.mesh.indices)
 		{
-			const auto match = m_indexMap.find(index);
-			if(match != m_indexMap.end())
+			indices.push_back(uint32_t(indices.size()));
+
+			vertices.push_back(m_attrib.vertices[3 * i.vertex_index]);
+			vertices.push_back(m_attrib.vertices[3 * i.vertex_index + 1]);
+			vertices.push_back(m_attrib.vertices[3 * i.vertex_index + 2]);
+			if(attribs & bmf::Normal)
 			{
-				// match
-				m_outShapeIndices.back().push_back(match->second);
+				vertices.push_back(m_attrib.normals[3 * i.normal_index]);
+				vertices.push_back(m_attrib.normals[3 * i.normal_index + 1]);
+				vertices.push_back(m_attrib.normals[3 * i.normal_index + 2]);
 			}
-			else
+			if(attribs & bmf::Texcoord0)
 			{
-				// add vertex
-				m_outShapeIndices.back().push_back(addVertex(index));
+				vertices.push_back(m_attrib.texcoords[2 * i.texcoord_index]);
+				vertices.push_back(m_attrib.texcoords[2 * i.texcoord_index + 1]);
+				vertices.push_back(m_attrib.texcoords[2 * i.texcoord_index + 2]);
 			}
 		}
+
+		uint32_t materialId;
+		if (s.mesh.material_ids.empty()) // choose default material (will be added by getMaterials() later)
+			materialId = uint32_t(m_materials.size());
+		else
+			materialId = uint32_t(s.mesh.material_ids[0]);
+
+		if (s.mesh.material_ids.size() > 1 && Console::PrintWarning)
+		{
+			// are they all the same?
+			if(!std::all_of(s.mesh.material_ids.begin(), s.mesh.material_ids.end(), [materialId](auto id)
+			{
+				return id == materialId;
+			}))
+				Console::warning("shape has more than one material. Only the first one will be used");
+		}
+
+		std::vector<bmf::BinaryMesh::Shape> shapes;
+		shapes.emplace_back(bmf::BinaryMesh::Shape{
+			0,
+			uint32_t(indices.size()),
+			materialId
+			});
+
+		meshes.emplace_back(attribs, std::move(vertices), std::move(indices), std::move(shapes));
+
+		Console::progress("meshes", meshes.size(), m_shapes.size());
 	}
+
+	// missing attributes generators
+	std::vector<std::unique_ptr<bmf::VertexGenerator>> generators;
+	// normal generator
+	generators.emplace_back(new bmf::FlatNormalGenerator());
+	// texcoord generator
+	float defTexCoord[] = { 0.0f, 0.0f };
+	generators.emplace_back(new bmf::ConstantValueGenerator(bmf::ValueVertex(bmf::Attributes::Texcoord0, defTexCoord)));
+
+	Console::info("removing duplicate vertices and generating missing attributes");
+	size_t curCount = 0;
+	// beautify meshes
+	for(auto& m : meshes)
+	{
+		m.removeDuplicateVertices();
+		// generate new meshes if required
+		m.changeAttributes(requestedAttribs, generators);
+
+		Console::progress("meshes", ++curCount, meshes.size());
+	}
+
+	// merge together into one final mesh
+	Console::info("merging meshes into one mesh");
+	return bmf::BinaryMesh::mergeShapes(meshes);
+}
+
+hrsf::Camera Converter::getCamera() const
+{
+	return hrsf::Camera::Default(); // just use default camera for now
+}
+
+std::vector<hrsf::Light> Converter::getLights() const
+{
+	// just one light from the top
+	std::vector<hrsf::Light> res;
+	res.emplace_back();
+	res.back().type = hrsf::Light::Directional;
+	res.back().color = { 1.0f, 1.0f, 1.0f };
+	res.back().direction = { 0.1f, -1.0f, 0.1f }; // from the top
+
+	return res;
+}
+
+std::vector<hrsf::Material> Converter::getMaterials() const
+{
+	Console::info("converting materials");
+
+	std::vector<hrsf::Material> res;
+	res.reserve(m_materials.size() + 1);
+
+	for(const auto& m : m_materials)
+	{
+		res.emplace_back();
+		auto& mat = res.back();
+		mat.name = m.name;
+		// textures
+		mat.textures.diffuse = m.diffuse_texname;
+		mat.textures.ambient = m.ambient_texname;
+		mat.textures.occlusion = m.alpha_texname;
+		mat.textures.specular = m.specular_texname;
+		// remaining stuff
+		mat.data = hrsf::MaterialData::Default();
+		std::copy(m.diffuse, m.diffuse + 3, mat.data.diffuse.begin());
+		std::copy(m.ambient, m.ambient + 3, mat.data.ambient.begin());
+		std::copy(m.specular, m.specular + 3, mat.data.specular.begin());
+		mat.data.occlusion = m.dissolve;
+		std::copy(m.emission, m.emission + 3, mat.data.emission.begin());
+		mat.data.gloss = m.shininess;
+		mat.data.roughness = m.roughness;
+		mat.data.flags = 0;
+
+		if (m.illum >= 3) // raytrace on flag
+			mat.data.flags |= hrsf::MaterialData::Flags::Reflection;
+
+		Console::progress("materials", res.size(), m_materials.size());
+	}
+
+	// add default material fallback (if some shape had no material it will use this)
+	res.emplace_back();
+	res.back().name = "missing_material";
+	res.back().data = hrsf::MaterialData::Default();
+
+	return res;
+}
+
+hrsf::Environment Converter::getEnvironment() const
+{
+	hrsf::Environment e;
+	// default white background
+	e.color = { 1.0f, 1.0f, 1.0f };
+	return e;
 }
 
 void Converter::printStats() const
@@ -98,223 +239,4 @@ void Converter::printStats() const
 		std::cerr << "removed " << m_normalsRemoved << " normals\n";
 	if (m_texcoordsRemoved)
 		std::cerr << "removed " << m_texcoordsRemoved << " texcoords\n";
-}
-
-void Converter::save(const std::string& filename) const
-{
-	std::cerr << "writing binary";
-
-	BinaryMeshLoader::save(filename + ".bin", m_outVertices, m_outShapeIndices, UseNormals, UseTexcoords);
-}
-
-int Converter::addVertex(tinyobj::index_t idx)
-{
-	// position
-	m_outVertices.push_back(m_attrib.vertices[idx.vertex_index * 3]);
-	m_outVertices.push_back(m_attrib.vertices[idx.vertex_index * 3 + 1]);
-	m_outVertices.push_back(m_attrib.vertices[idx.vertex_index * 3 + 2]);
-
-	// normal
-	if(UseNormals)
-	{
-		m_outVertices.push_back(m_attrib.normals[idx.normal_index * 3]);
-		m_outVertices.push_back(m_attrib.normals[idx.normal_index * 3] + 1);
-		m_outVertices.push_back(m_attrib.normals[idx.normal_index * 3] + 2);
-	}
-
-	// texcoords
-	if(UseTexcoords)
-	{
-		m_outVertices.push_back(m_attrib.texcoords[idx.texcoord_index]);
-		m_outVertices.push_back(m_attrib.texcoords[idx.texcoord_index] + 1);
-	}
-
-	return m_curIndex++;
-}
-
-void Converter::generateMissingNormals()
-{
-	std::cerr << "generating missing normals\n";
-	auto nMissing = 0;
-	for(auto& s : m_shapes)
-	{
-		// check normals for each triangle
-		const bool hasNormals = std::all_of(s.mesh.indices.begin(), s.mesh.indices.end(), [](tinyobj::index_t i)
-		{
-			return i.normal_index != -1;
-		});
-		if (hasNormals) continue;
-
-		++nMissing;
-		// generate normals
-		for(int i = 0, end = int(s.mesh.indices.size()); i < end; i += 3)
-		{
-			// retrieves points
-			auto& i0 = s.mesh.indices[i];
-			auto& i1 = s.mesh.indices[i + 1];
-			auto& i2 = s.mesh.indices[i + 2];
-
-			const auto p0 = glm::vec3(m_attrib.vertices[i0.vertex_index]);
-			const auto p1 = glm::vec3(m_attrib.vertices[i1.vertex_index]);
-			const auto p2 = glm::vec3(m_attrib.vertices[i2.vertex_index]);
-			
-			// calc edges
-			const auto e1 = p1 - p0;
-			const auto e2 = p2 - p0;
-
-			// normal
-			const auto n = glm::normalize(glm::cross(e1, e2));
-
-			// add normal
-			const auto nIndex = int(m_attrib.normals.size() / 3);
-			m_attrib.normals.push_back(n.x);
-			m_attrib.normals.push_back(n.y);
-			m_attrib.normals.push_back(n.z);
-
-			// overwrite indices
-			i0.normal_index = nIndex;
-			i1.normal_index = nIndex;
-			i2.normal_index = nIndex;
-		}
-
-		m_normalsGenerated += s.mesh.indices.size();
-	}
-
-	std::cerr << "generated normals for " << nMissing << " shapes\n";
-}
-
-void Converter::generateMissingTexcoords()
-{
-	std::cerr << "generating missing texcoords\n";
-	auto nMissing = 0;
-
-	// use dummy texcoords
-	if(m_attrib.texcoords.size() == 0)
-	{
-		// add dummy texcoords
-		m_attrib.texcoords.push_back(0.0f);
-		m_attrib.texcoords.push_back(0.0f);
-	}
-
-	// set dummy texcoords
-	for(auto& s : m_shapes)
-	{
-		bool isMissing = false;
-		for(auto& i : s.mesh.indices)
-		{
-			if (i.texcoord_index == -1)
-			{
-				i.texcoord_index = 0;
-				m_texcoordsGenerated++;
-				isMissing = true;
-			}
-		}
-		if (isMissing) ++nMissing;
-	}
-
-	std::cerr << "generated texcoords for " << nMissing << " shapes\n";
-}
-
-void Converter::removeDuplicates()
-{
-	// remove duplicate vertices
-	removeDuplicates(m_attrib.vertices, 3, RemoveTolerance,
-	[this](size_t remove, size_t replace)
-	{
-		m_verticesRemoved++;
-		this->removeIndex(remove, replace, [](tinyobj::index_t i)
-		{
-			return size_t(i.vertex_index);
-		}, [](tinyobj::index_t& i, size_t value)
-		{
-			i.vertex_index = int(value);
-		});
-	});
-
-	if (UseNormals)
-		removeDuplicates(m_attrib.normals, 3, RemoveTolerance,
-			[this](size_t remove, size_t replace)
-		{
-			m_normalsRemoved = 0;
-			this->removeIndex(remove, replace, [](tinyobj::index_t i)
-			{
-				return size_t(i.normal_index);
-			}, [](tinyobj::index_t& i, size_t value)
-			{
-				i.normal_index = int(value);
-			});
-		});
-
-	if (UseTexcoords)
-		removeDuplicates(m_attrib.texcoords, 2, RemoveTolerance,
-			[this](size_t remove, size_t replace)
-		{
-			m_texcoordsRemoved = 0;
-			this->removeIndex(remove, replace, [](tinyobj::index_t i)
-			{
-				return size_t(i.texcoord_index);
-			}, [](tinyobj::index_t& i, size_t value)
-			{
-				i.texcoord_index = int(value);
-			});
-		});
-}
-
-void Converter::removeDuplicates(std::vector<float>& vec, size_t stride, float tolerance, 
-	std::function<void(size_t, size_t)> removeIndex)
-{
-	std::vector<float> res;
-	res.reserve(vec.size());
-	std::cerr << "removing duplicates\n";
-
-	auto index = 0;
-	for(auto i = VertexIterator(vec.begin(), stride); i != vec.end(); )
-	{
-		if(index % 1000 == 0)
-		{
-			std::cerr << index << "/" << vec.size() / stride << '\n';
-		}
-
-		bool increaseIterator = true;
-
-		// compare with all previous elements
-		for(auto j = VertexIterator(vec.begin(), stride); j != i; ++j)
-		{
-			auto error = j.getDifference(i);
-			if (error > tolerance) continue; // keep this vertex
-
-			// remove this vertex
-			removeIndex(i.getIndex(vec), j.getIndex(vec));
-			i.erase(vec);
-			increaseIterator = false;
-			break;
-		}
-
-		if (increaseIterator)
-		{
-			++i;
-			++index;
-		}
-	}
-}
-
-void Converter::removeIndex(size_t remove, size_t replaces, std::function<size_t(tinyobj::index_t)> getIndex,
-	std::function<void(tinyobj::index_t&, size_t)> setIndex)
-{
-	std::cerr << "removing index\n";
-	for(auto& s : m_shapes)
-	{
-		for(auto& i : s.mesh.indices)
-		{
-			auto idx = getIndex(i);
-			if(idx == remove) // replace index
-			{
-				setIndex(i, replaces);
-			}
-			else if(idx > remove) // decrease index
-			{
-				setIndex(i, idx - 1);
-			}
-		}
-	}
 }

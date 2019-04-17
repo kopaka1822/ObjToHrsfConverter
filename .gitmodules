@@ -10,3 +10,6 @@
 [submodule "json"]
 	path = json
 	url = https://github.com/nlohmann/json.git
+[submodule "hrsf"]
+	path = hrsf
+	url = git@github.com:kopaka1822/HRSceneFromat.git

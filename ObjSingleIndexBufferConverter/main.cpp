@@ -1,6 +1,7 @@
 #include "ArgumentSet.h"
 #include <iostream>
 #include "Converter.h"
+#include "Console.h"
 
 int main(int argc, char** argv) try
 {
@@ -14,14 +15,13 @@ int main(int argc, char** argv) try
 
 	Converter converter;
 	converter.load(inputFilename);
-	converter.convert();
+	converter.convert(outputFilename);
 	converter.printStats();
-	converter.save(outputFilename);
 
 	return 0;
 }
 catch (const std::exception& e)
 {
-	std::cerr << "ERR: " << e.what();
+	Console::error(e.what());
 	return -1;
 }
