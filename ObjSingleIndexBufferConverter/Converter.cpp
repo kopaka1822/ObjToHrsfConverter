@@ -101,8 +101,8 @@ bmf::BinaryMesh Converter::convertMesh() const
 			if(attribs & bmf::Texcoord0)
 			{
 				vertices.push_back(m_attrib.texcoords[2 * i.texcoord_index]);
-				vertices.push_back(m_attrib.texcoords[2 * i.texcoord_index + 1]);
-				vertices.push_back(m_attrib.texcoords[2 * i.texcoord_index + 2]);
+				// directX reverses y coordinate
+				vertices.push_back(1.0f - m_attrib.texcoords[2 * i.texcoord_index + 1]);
 			}
 		}
 
@@ -117,10 +117,13 @@ bmf::BinaryMesh Converter::convertMesh() const
 			// are they all the same?
 			if(!std::all_of(s.mesh.material_ids.begin(), s.mesh.material_ids.end(), [materialId](auto id)
 			{
-				return id == materialId;
+				return id == int(materialId);
 			}))
 				Console::warning("shape has more than one material. Only the first one will be used");
 		}
+
+		if (materialId == uint32_t(-1)) // not material => choose default material
+			materialId = uint32_t(m_materials.size());
 
 		std::vector<bmf::BinaryMesh::Shape> shapes;
 		shapes.emplace_back(bmf::BinaryMesh::Shape{
