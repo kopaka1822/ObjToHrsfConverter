@@ -70,16 +70,16 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <IncludePath>D:\git\ObjSingleIndexBufferConverter\hrsf\include;$(IncludePath)</IncludePath>
+    <IncludePath>..\glm;..\hrsf\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <IncludePath>D:\git\ObjSingleIndexBufferConverter\hrsf\include;$(IncludePath)</IncludePath>
+    <IncludePath>..\glm;..\hrsf\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <IncludePath>D:\git\ObjSingleIndexBufferConverter\hrsf\include;$(IncludePath)</IncludePath>
+    <IncludePath>..\glm;..\hrsf\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <IncludePath>D:\git\ObjSingleIndexBufferConverter\hrsf\include;$(IncludePath)</IncludePath>
+    <IncludePath>..\glm;..\hrsf\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -134,13 +134,14 @@
     <ClCompile Include="Console.cpp" />
     <ClCompile Include="Converter.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="TextureConverter.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ArgumentSet.h" />
     <ClInclude Include="Console.h" />
     <ClInclude Include="Converter.h" />
-    <ClInclude Include="FileHelper.h" />
     <ClInclude Include="glm.h" />
+    <ClInclude Include="TextureConverter.h" />
     <ClInclude Include="tinyobjhash.h" />
   </ItemGroup>
   <ItemGroup>

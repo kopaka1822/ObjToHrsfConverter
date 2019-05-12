@@ -6,6 +6,7 @@
 #include "../props/property.h"
 #define BMF_GENERATORS
 #include <hrsf/SceneFormat.h>
+#include "TextureConverter.h"
 
 using namespace prop;
 
@@ -13,9 +14,7 @@ class Converter
 {
 public:
 	Converter();
-
-	void load(const std::string& filename);
-	void convert(const std::string& filename);
+	void convert(std::filesystem::path src, std::filesystem::path dst);
 	
 	void printStats() const;
 
@@ -26,6 +25,9 @@ public:
 	DefaultGetterSetter<bool> RemoveDuplicates;
 	DefaultGetterSetter<float> RemoveTolerance;
 private:
+	void load(std::filesystem::path src);
+	void save(std::filesystem::path dst);
+
 	bmf::BinaryMesh convertMesh() const;
 	hrsf::Camera getCamera() const;
 	std::vector<hrsf::Light> getLights() const;
@@ -41,4 +43,6 @@ private:
 	size_t m_verticesRemoved = 0;
 	size_t m_normalsRemoved = 0;
 	size_t m_texcoordsRemoved = 0;
+
+	mutable TextureConverter m_texConvert;
 };

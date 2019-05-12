@@ -27,12 +27,12 @@
     <ClCompile Include="Console.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TextureConverter.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="ArgumentSet.h">
-      <Filter>Source Files</Filter>
-    </ClInclude>
-    <ClInclude Include="FileHelper.h">
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="Converter.h">
@@ -45,6 +45,9 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="Console.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TextureConverter.h">
       <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>

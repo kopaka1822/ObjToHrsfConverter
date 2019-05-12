@@ -13,3 +13,6 @@
 [submodule "hrsf"]
 	path = hrsf
 	url = git@github.com:kopaka1822/HRSceneFromat.git
+[submodule "gli"]
+	path = gli
+	url = https://github.com/g-truc/gli.git

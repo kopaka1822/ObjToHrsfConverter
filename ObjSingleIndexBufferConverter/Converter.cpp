@@ -4,6 +4,7 @@
 #include "glm.h"
 #include <iostream>
 #include "Console.h"
+#include "TextureConverter.h"
 
 Converter::Converter()
 	:
@@ -15,15 +16,25 @@ RemoveTolerance(0.00001f)
 
 }
 
-void Converter::load(const std::string& filename)
+void Converter::convert(std::filesystem::path src, std::filesystem::path dst)
 {
-	Console::info("loading " + filename);
+	m_texConvert = TextureConverter(src.parent_path(), dst.parent_path());
+	load(src);	
+	save(dst);
+}
 
-	const auto inputDirectory = getDirectory(filename);
+void Converter::load(std::filesystem::path src)
+{
+	Console::info("loading " + src.string());
+
+	const auto inputDirectory = src.parent_path();
 	std::string warnings;
 	std::string errors;
-	bool res = tinyobj::LoadObj(&m_attrib, &m_shapes, &m_materials, &warnings, &errors, filename.c_str(),
-		inputDirectory.c_str(), true);
+
+	auto srcString = src.string();
+	auto dirString = inputDirectory.string();
+	bool res = tinyobj::LoadObj(&m_attrib, &m_shapes, &m_materials, &warnings, &errors, srcString.c_str(),
+		dirString.c_str(), true);
 	if (!res || !errors.empty())
 		throw std::runtime_error("obj loader: " + errors);
 
@@ -46,7 +57,7 @@ void Converter::load(const std::string& filename)
 		throw std::runtime_error("no vertices found");
 }
 
-void Converter::convert(const std::string& filename) 
+void Converter::save(std::filesystem::path dst)
 {
 	Console::info("converting to hrsf");
 	hrsf::SceneFormat scene(convertMesh(), getCamera(), getLights(), getMaterials(), getEnvironment());
@@ -55,8 +66,8 @@ void Converter::convert(const std::string& filename)
 	Console::info("removing unused materials");
 	scene.removeUnusedMaterials();
 
-	Console::info("writing to " + filename);
-	scene.save(filename);
+	Console::info("writing to " + dst.string());
+	scene.save(dst);
 }
 
 bmf::BinaryMesh Converter::convertMesh() const
@@ -192,10 +203,10 @@ std::vector<hrsf::Material> Converter::getMaterials() const
 		auto& mat = res.back();
 		mat.name = m.name;
 		// textures
-		mat.textures.diffuse = m.diffuse_texname;
-		mat.textures.ambient = m.ambient_texname;
-		mat.textures.occlusion = m.alpha_texname;
-		mat.textures.specular = m.specular_texname;
+		mat.textures.diffuse = m_texConvert.convertTexture(m.diffuse_texname, true);
+		mat.textures.ambient = m_texConvert.convertTexture(m.diffuse_texname, true);
+		mat.textures.occlusion = m_texConvert.convertTexture(m.diffuse_texname, true);
+		mat.textures.specular = m_texConvert.convertTexture(m.diffuse_texname, true);
 		// remaining stuff
 		mat.data = hrsf::MaterialData::Default();
 		std::copy(m.diffuse, m.diffuse + 3, mat.data.diffuse.begin());

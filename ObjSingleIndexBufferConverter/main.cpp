@@ -14,8 +14,7 @@ int main(int argc, char** argv) try
 	args.init(argc - 3, argv + 3);
 
 	Converter converter;
-	converter.load(inputFilename);
-	converter.convert(outputFilename);
+	converter.convert(inputFilename, outputFilename);
 	converter.printStats();
 
 	return 0;
