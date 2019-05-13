@@ -204,9 +204,9 @@ std::vector<hrsf::Material> Converter::getMaterials() const
 		mat.name = m.name;
 		// textures
 		mat.textures.diffuse = m_texConvert.convertTexture(m.diffuse_texname, true);
-		mat.textures.ambient = m_texConvert.convertTexture(m.diffuse_texname, true);
-		mat.textures.occlusion = m_texConvert.convertTexture(m.diffuse_texname, true);
-		mat.textures.specular = m_texConvert.convertTexture(m.diffuse_texname, true);
+		mat.textures.ambient = m_texConvert.convertTexture(m.ambient_texname, true);
+		mat.textures.occlusion = m_texConvert.convertTexture(m.alpha_texname, true);
+		mat.textures.specular = m_texConvert.convertTexture(m.specular_texname, true);
 		// remaining stuff
 		mat.data = hrsf::MaterialData::Default();
 		std::copy(m.diffuse, m.diffuse + 3, mat.data.diffuse.begin());

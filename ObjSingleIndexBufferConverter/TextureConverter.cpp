@@ -37,6 +37,21 @@ gli::texture2d::format_type getUnormFormat(int components)
 	return gli::FORMAT_UNDEFINED;
 }
 
+uint32_t CountMips(uint32_t width, uint32_t height)
+{
+	if (width == 0 || height == 0)
+		return 0;
+
+	uint32_t count = 1;
+	while (width > 1 || height > 1)
+	{
+		width >>= 1;
+		height >>= 1;
+		count++;
+	}
+	return count;
+}
+
 gli::texture2d loadStbiImage(const std::string& filename, bool expectSrgb)
 {
 	int x, y, comp;
@@ -48,7 +63,8 @@ gli::texture2d loadStbiImage(const std::string& filename, bool expectSrgb)
 	gli::texture2d gliTex(
 		expectSrgb?getSrbFormat(comp):getUnormFormat(comp),
 		gli::extent2d(x, y),
-		1, gli::texture::swizzles_type()
+		CountMips(x, y), 
+		gli::texture::swizzles_type()
 	);
 
 	const auto size = gliTex.size(0);
@@ -60,7 +76,10 @@ gli::texture2d loadStbiImage(const std::string& filename, bool expectSrgb)
 	memcpy(gliTex.data(0, 0, 0), data, size);
 	stbi_image_free(data);
 
-	return gliTex;
+	// RGB formats are deprecated => convert to rgba
+	if (comp != 3) return gliTex;
+
+	return gli::convert(gliTex, expectSrgb?getSrbFormat(4):getUnormFormat(4));
 }
 
 TextureConverter::path TextureConverter::convertTexture(const path& filename, bool expectSrgb)
@@ -91,6 +110,8 @@ TextureConverter::path TextureConverter::convertTexture(const path& filename, bo
 
 	// load png, jpg etc. with stb
 	auto tex = loadStbiImage(srcPath.string(), expectSrgb);
+	// create levels for mipmaps
+	
 	// generate mip maps
 	auto mipTex = gli::generate_mipmaps(tex, gli::filter::FILTER_LINEAR);
 
@@ -99,6 +120,8 @@ TextureConverter::path TextureConverter::convertTexture(const path& filename, bo
 	{
 		throw std::runtime_error("could not save " + dstPathString);
 	}
+	//dstPathString = dstPath.replace_extension(".ktx").string();
+	//gli::save_ktx(mipTex, dstPathString.c_str());
 
 	return dstPath;
 }
