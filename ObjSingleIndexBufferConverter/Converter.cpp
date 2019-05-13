@@ -55,12 +55,24 @@ void Converter::load(std::filesystem::path src)
 
 	if (m_attrib.vertices.empty())
 		throw std::runtime_error("no vertices found");
+
+	// test if all materials have zero ambient => ambient should be set to 1.0
+	if (std::all_of(m_materials.begin(), m_materials.end(), [](const tinyobj::material_t& mat)
+	{
+		return mat.ambient[0] == 0.0f && mat.ambient[1] == 0.0f && mat.ambient[2] == 0.0f;
+	}))
+	{
+		Console::warning("all materials have zero ambient color => setting it to 1");
+		for (auto& mat : m_materials)
+			mat.ambient[0] = mat.ambient[1] = mat.ambient[2] = 1.0f;
+	}
 }
 
 void Converter::save(std::filesystem::path dst)
 {
 	Console::info("converting to hrsf");
-	hrsf::SceneFormat scene(convertMesh(), getCamera(), getLights(), getMaterials(), getEnvironment());
+	auto mesh = convertMesh();
+	hrsf::SceneFormat scene(std::move(mesh), getCamera(), getLights(), getMaterials(), getEnvironment());
 	scene.verify();
 
 	Console::info("removing unused materials");
@@ -89,6 +101,8 @@ bmf::BinaryMesh Converter::convertMesh() const
 			attribs |= bmf::Normal;
 		if (s.mesh.indices[0].texcoord_index >= 0 && UseTexcoords)
 			attribs |= bmf::Texcoord0;
+
+		const auto stride = bmf::getAttributeElementStride(attribs);
 
 		// for now brute force create mesh
 		std::vector<float> vertices;
@@ -140,8 +154,10 @@ bmf::BinaryMesh Converter::convertMesh() const
 		shapes.emplace_back(bmf::BinaryMesh::Shape{
 			0,
 			uint32_t(indices.size()),
+			0,
+			uint32_t(vertices.size() / stride),
 			materialId
-			});
+		});
 
 		meshes.emplace_back(attribs, std::move(vertices), std::move(indices), std::move(shapes));
 
