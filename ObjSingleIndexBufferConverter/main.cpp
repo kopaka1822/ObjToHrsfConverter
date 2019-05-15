@@ -3,6 +3,8 @@
 #include "Converter.h"
 #include "Console.h"
 
+// params: 
+// -notextures => skips texture conversion / generation
 int main(int argc, char** argv) try
 {
 	if (argc < 3)
@@ -14,6 +16,10 @@ int main(int argc, char** argv) try
 	args.init(argc - 3, argv + 3);
 
 	Converter converter;
+
+	if (args.has("notextures"))
+		converter.GenerateTextures = false;
+
 	converter.convert(inputFilename, outputFilename);
 	converter.printStats();
 

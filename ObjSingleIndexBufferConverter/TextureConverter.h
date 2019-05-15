@@ -9,7 +9,8 @@ class TextureConverter
 public:
 	using path = std::filesystem::path;
 
-	TextureConverter(path srcPath, path dstPath);
+	/// \param writeFiles indicates if the textures should be converted and written to the destination
+	TextureConverter(path srcPath, path dstPath, bool writeFiles);
 	TextureConverter() = default;
 
 	/// \param expectSrgb expects png, jpg to be srgb when loading
@@ -18,4 +19,5 @@ private:
 	path m_srcRoot;
 	path m_dstRoot;
 	std::map<path, path> m_convertedMap;
+	bool m_writeFiles;
 };

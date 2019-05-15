@@ -23,6 +23,7 @@ public:
 	DefaultGetterSetter<bool> UseTexcoords;
 	// reduces duplicate vertices
 	DefaultGetterSetter<bool> RemoveDuplicates;
+	DefaultGetterSetter<bool> GenerateTextures;
 	DefaultGetterSetter<float> RemoveTolerance;
 private:
 	void load(std::filesystem::path src);

@@ -7,10 +7,11 @@
 #include "../gli/gli/gli.hpp"
 #include "../gli/gli/generate_mipmaps.hpp"
 
-TextureConverter::TextureConverter(path srcPath, path dstPath)
+TextureConverter::TextureConverter(path srcPath, path dstPath, bool writeFiles)
 	:
 m_srcRoot(srcPath),
-m_dstRoot(dstPath)
+m_dstRoot(dstPath),
+m_writeFiles(writeFiles)
 {}
 
 gli::texture2d::format_type getSrbFormat(int components)
@@ -95,10 +96,13 @@ TextureConverter::path TextureConverter::convertTexture(const path& filename, bo
 		return it->second;
 	}
 
-	// assure that the directory is available
-	std::filesystem::create_directories(dstPath.parent_path());
 	// add new entry
 	m_convertedMap[srcPath] = dstPath;
+
+	if (!m_writeFiles) return dstPath;
+
+	// assure that the directory is available
+	std::filesystem::create_directories(dstPath.parent_path());
 
 	// input is relative path
 	if(filename.extension() == ".dds")
@@ -120,8 +124,6 @@ TextureConverter::path TextureConverter::convertTexture(const path& filename, bo
 	{
 		throw std::runtime_error("could not save " + dstPathString);
 	}
-	//dstPathString = dstPath.replace_extension(".ktx").string();
-	//gli::save_ktx(mipTex, dstPathString.c_str());
 
 	return dstPath;
 }

@@ -11,14 +11,15 @@ Converter::Converter()
 UseNormals(true),
 UseTexcoords(true),
 RemoveDuplicates(false),
-RemoveTolerance(0.00001f)
+RemoveTolerance(0.00001f),
+GenerateTextures(true)
 {
 
 }
 
 void Converter::convert(std::filesystem::path src, std::filesystem::path dst)
 {
-	m_texConvert = TextureConverter(src.parent_path(), dst.parent_path());
+	m_texConvert = TextureConverter(src.parent_path(), dst.parent_path(), GenerateTextures);
 	load(src);	
 	save(dst);
 }
@@ -159,7 +160,8 @@ bmf::BinaryMesh Converter::convertMesh() const
 			materialId
 		});
 
-		meshes.emplace_back(attribs, std::move(vertices), std::move(indices), std::move(shapes));
+		meshes.emplace_back(attribs, std::move(vertices), std::move(indices), std::move(shapes));// , std::vector<glm::vec3>{glm::vec3(0.0f)});
+		meshes.back().generateBoundingBoxes();
 
 		Console::progress("meshes", meshes.size(), m_shapes.size());
 	}
@@ -172,15 +174,29 @@ bmf::BinaryMesh Converter::convertMesh() const
 	float defTexCoord[] = { 0.0f, 0.0f };
 	generators.emplace_back(new bmf::ConstantValueGenerator(bmf::ValueVertex(bmf::Attributes::Texcoord0, defTexCoord)));
 
-	Console::info("removing duplicate vertices and generating missing attributes");
+	Console::info("removing duplicate vertices");
 	size_t curCount = 0;
-	// beautify meshes
+	size_t maxVertexCount = 0;
 	for(auto& m : meshes)
 	{
 		m.removeDuplicateVertices();
-		// generate new meshes if required
-		m.changeAttributes(requestedAttribs, generators);
+		maxVertexCount = std::max(maxVertexCount, size_t(m.getNumVertices()));
+		//m.centerShapes(); // center shapes to improve numerical stability for instances
+		Console::progress("meshes", ++curCount, meshes.size());
+	}
+	Console::info("Max vertex count per shape: " + std::to_string(maxVertexCount));
 
+	//Console::info("deinstancing shapes");
+	//auto sizeBefore = meshes.size();
+	//bmf::BinaryMesh::deinstanceShapes(meshes, 0.1f);
+	//if(sizeBefore != meshes.size())
+	//	Console::info("reduced shapes from " + std::to_string(sizeBefore) + " to " + std::to_string(meshes.size()));
+
+	Console::info("generating missing attributes");
+	curCount = 0;
+	for (auto& m : meshes)
+	{
+		m.changeAttributes(requestedAttribs, generators);
 		Console::progress("meshes", ++curCount, meshes.size());
 	}
 
