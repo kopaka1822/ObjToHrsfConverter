@@ -18,8 +18,14 @@ public:
 	
 	void printStats() const;
 
+	hrsf::Component OutComponents = hrsf::Component::All;
+	void removeComponent(hrsf::Component component);
+	
+	TextureConverter& getTexConverter();
+
 	// properties
 	DefaultGetterSetter<bool> UseNormals;
+	DefaultGetterSetter<bool> UseSingleFile;
 	DefaultGetterSetter<bool> UseTexcoords;
 	// reduces duplicate vertices
 	DefaultGetterSetter<bool> RemoveDuplicates;
@@ -29,7 +35,7 @@ private:
 	void load(std::filesystem::path src);
 	void save(std::filesystem::path dst);
 
-	bmf::BinaryMesh convertMesh() const;
+	std::vector<hrsf::Mesh> convertMesh(const std::vector<hrsf::Material>& materials) const;
 	hrsf::Camera getCamera() const;
 	std::vector<hrsf::Light> getLights() const;
 	std::vector<hrsf::Material> getMaterials() const;

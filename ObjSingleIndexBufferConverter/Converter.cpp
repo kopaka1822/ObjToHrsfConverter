@@ -9,10 +9,11 @@
 Converter::Converter()
 	:
 UseNormals(true),
+UseSingleFile(false),
 UseTexcoords(true),
 RemoveDuplicates(false),
-RemoveTolerance(0.00001f),
-GenerateTextures(true)
+GenerateTextures(true),
+RemoveTolerance(0.00001f)
 {
 
 }
@@ -72,18 +73,26 @@ void Converter::load(std::filesystem::path src)
 void Converter::save(std::filesystem::path dst)
 {
 	Console::info("converting to hrsf");
-	auto mesh = convertMesh();
-	hrsf::SceneFormat scene(std::move(mesh), getCamera(), getLights(), getMaterials(), getEnvironment());
+
+	auto materials = getMaterials();
+
+	std::vector<hrsf::Mesh> mesh;
+	if(OutComponents & hrsf::Component::Mesh)
+	{
+		mesh = convertMesh(materials);
+	}
+	
+	hrsf::SceneFormat scene(std::move(mesh), getCamera(), getLights(), move(materials), getEnvironment());
 	scene.verify();
 
 	Console::info("removing unused materials");
 	scene.removeUnusedMaterials();
 
 	Console::info("writing to " + dst.string());
-	scene.save(dst);
+	scene.save(dst, UseSingleFile, OutComponents);
 }
 
-bmf::BinaryMesh Converter::convertMesh() const
+std::vector<hrsf::Mesh> Converter::convertMesh(const std::vector<hrsf::Material>& materials) const
 {
 	uint32_t requestedAttribs = bmf::Position;
 	if(UseNormals)
@@ -94,7 +103,7 @@ bmf::BinaryMesh Converter::convertMesh() const
 
 	Console::info("creating meshes");
 	// convert all shapes into seperate binary meshes
-	std::vector<bmf::BinaryMesh> meshes;
+	std::vector<bmf::BinaryMesh16> meshes;
 	for (const auto& s : m_shapes)
 	{
 		uint32_t attribs = bmf::Position;
@@ -151,8 +160,8 @@ bmf::BinaryMesh Converter::convertMesh() const
 		if (materialId == uint32_t(-1)) // not material => choose default material
 			materialId = uint32_t(m_materials.size());
 
-		std::vector<bmf::BinaryMesh::Shape> shapes;
-		shapes.emplace_back(bmf::BinaryMesh::Shape{
+		std::vector<bmf::Shape> shapes;
+		shapes.emplace_back(bmf::Shape{
 			0,
 			uint32_t(indices.size()),
 			0,
@@ -160,9 +169,15 @@ bmf::BinaryMesh Converter::convertMesh() const
 			materialId
 		});
 
-		meshes.emplace_back(attribs, std::move(vertices), std::move(indices), std::move(shapes));// , std::vector<glm::vec3>{glm::vec3(0.0f)});
-		meshes.back().generateBoundingBoxes();
+		bmf::BinaryMesh32 mesh(attribs, std::move(vertices), std::move(indices), std::move(shapes));// , std::vector<glm::vec3>{glm::vec3(0.0f)});
+		mesh.generateBoundingBoxes();
 
+		// convert to 16 bit mesh
+		for(auto& m : mesh.force16BitIndices())
+		{
+			meshes.emplace_back(std::move(m));
+		}
+		
 		Console::progress("meshes", meshes.size(), m_shapes.size());
 	}
 
@@ -200,14 +215,41 @@ bmf::BinaryMesh Converter::convertMesh() const
 		Console::progress("meshes", ++curCount, meshes.size());
 	}
 
-	// merge together into one final mesh
-	Console::info("merging meshes into one mesh");
-	return bmf::BinaryMesh::mergeShapes(meshes);
+	Console::info("merging meshes");
+	// all transparent meshes and all non transparent meshes belong together
+	std::vector<bmf::BinaryMesh16> opaqueMeshes;
+	opaqueMeshes.reserve(meshes.size());
+	std::vector<bmf::BinaryMesh16> transMeshes;
+	transMeshes.reserve(transMeshes.size());
+
+	for(auto& m : meshes)
+	{
+		auto matId = m.getShapes()[0].materialId;
+		if (materials.at(matId).data.flags & hrsf::MaterialData::Transparent)
+			transMeshes.emplace_back(std::move(m));
+		else
+			opaqueMeshes.emplace_back(std::move(m));
+	}
+
+	// put into final vector
+	std::vector<hrsf::Mesh> result;
+	result.reserve(2);
+	if(!opaqueMeshes.empty())
+		result.emplace_back(bmf::BinaryMesh16::mergeShapes(opaqueMeshes));
+	if(!transMeshes.empty())
+		result.emplace_back(bmf::BinaryMesh16::mergeShapes(transMeshes));
+
+	if (result.empty())
+		throw std::runtime_error("no mesh available");
+
+	return result;
 }
 
 hrsf::Camera Converter::getCamera() const
 {
-	return hrsf::Camera::Default(); // just use default camera for now
+	hrsf::Camera cam; // use default camera for now
+	cam.data = hrsf::CameraData::Default();
+	return cam;
 }
 
 std::vector<hrsf::Light> Converter::getLights() const
@@ -215,9 +257,9 @@ std::vector<hrsf::Light> Converter::getLights() const
 	// just one light from the top
 	std::vector<hrsf::Light> res;
 	res.emplace_back();
-	res.back().type = hrsf::Light::Directional;
-	res.back().color = { 1.0f, 1.0f, 1.0f };
-	res.back().direction = { 0.1f, -1.0f, 0.1f }; // from the top
+	res.back().data.type = hrsf::LightData::Directional;
+	res.back().data.color = { 1.0f, 1.0f, 1.0f };
+	res.back().data.direction = { 0.1f, -1.0f, 0.1f }; // from the top
 
 	return res;
 }
@@ -241,17 +283,28 @@ std::vector<hrsf::Material> Converter::getMaterials() const
 		mat.textures.specular = m_texConvert.convertTexture(m.specular_texname, true);
 		// remaining stuff
 		mat.data = hrsf::MaterialData::Default();
-		std::copy(m.diffuse, m.diffuse + 3, mat.data.diffuse.begin());
-		std::copy(m.ambient, m.ambient + 3, mat.data.ambient.begin());
-		std::copy(m.specular, m.specular + 3, mat.data.specular.begin());
+		std::copy(m.diffuse, m.diffuse + 3, glm::value_ptr(mat.data.diffuse));
+		std::copy(m.ambient, m.ambient + 3, glm::value_ptr(mat.data.ambient));
+		std::copy(m.specular, m.specular + 3, glm::value_ptr(mat.data.specular));
 		mat.data.occlusion = m.dissolve;
-		std::copy(m.emission, m.emission + 3, mat.data.emission.begin());
+		std::copy(m.emission, m.emission + 3, glm::value_ptr(mat.data.emission));
 		mat.data.gloss = m.shininess;
 		mat.data.roughness = m.roughness;
 		mat.data.flags = 0;
 
 		if (m.illum >= 3) // raytrace on flag
 			mat.data.flags |= hrsf::MaterialData::Flags::Reflection;
+
+		// is transparent?
+		bool isTransparent = false;
+		if (mat.data.occlusion < 1.0f) isTransparent = true;
+		if (!mat.textures.occlusion.empty()) isTransparent = true;
+		// has diffuse texture alpha channel?
+		if (!isTransparent && !mat.textures.diffuse.empty())
+			isTransparent = m_texConvert.hasAlpha(mat.textures.diffuse);
+
+		if (isTransparent)
+			mat.data.flags |= hrsf::MaterialData::Transparent;
 
 		Console::progress("materials", res.size(), m_materials.size());
 	}
@@ -285,4 +338,14 @@ void Converter::printStats() const
 		std::cerr << "removed " << m_normalsRemoved << " normals\n";
 	if (m_texcoordsRemoved)
 		std::cerr << "removed " << m_texcoordsRemoved << " texcoords\n";
+}
+
+void Converter::removeComponent(hrsf::Component component)
+{
+	OutComponents = hrsf::Component(uint32_t(OutComponents) & ~uint32_t(component));
+}
+
+TextureConverter& Converter::getTexConverter()
+{
+	return m_texConvert;
 }

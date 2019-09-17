@@ -53,9 +53,10 @@ uint32_t CountMips(uint32_t width, uint32_t height)
 	return count;
 }
 
-gli::texture2d loadStbiImage(const std::string& filename, bool expectSrgb)
+gli::texture2d loadStbiImage(const std::string& filename, bool expectSrgb, bool& hasNativeAlpha)
 {
 	int x, y, comp;
+	hasNativeAlpha = false;
 	auto data = stbi_load(filename.c_str(), &x, &y, &comp, 0);
 	if (data == nullptr)
 		throw std::runtime_error("could not load " + filename);
@@ -67,6 +68,8 @@ gli::texture2d loadStbiImage(const std::string& filename, bool expectSrgb)
 		CountMips(x, y), 
 		gli::texture::swizzles_type()
 	);
+
+	if (comp == 4) hasNativeAlpha = true;
 
 	const auto size = gliTex.size(0);
 	if (size != size_t(x * y * comp))
@@ -113,7 +116,9 @@ TextureConverter::path TextureConverter::convertTexture(const path& filename, bo
 	}
 
 	// load png, jpg etc. with stb
-	auto tex = loadStbiImage(srcPath.string(), expectSrgb);
+	bool hasNativeAlpha = false;
+	auto tex = loadStbiImage(srcPath.string(), expectSrgb, hasNativeAlpha);
+
 	// create levels for mipmaps
 	
 	// generate mip maps
@@ -125,5 +130,21 @@ TextureConverter::path TextureConverter::convertTexture(const path& filename, bo
 		throw std::runtime_error("could not save " + dstPathString);
 	}
 
+	if (hasNativeAlpha) m_alphaMap.insert(dstPath);
+
 	return dstPath;
+}
+
+bool TextureConverter::hasAlpha(const path& dstFilePath)
+{
+	return m_alphaMap.find(dstFilePath) != m_alphaMap.end();
+}
+
+void TextureConverter::setAlphaTexture(const path& srcFilePath)
+{
+	if (srcFilePath.empty()) return;
+
+	auto srcPath = m_srcRoot / srcFilePath;
+	auto dstPath = (m_dstRoot / srcFilePath).replace_extension(".dds");
+	m_alphaMap.insert(dstPath);
 }
