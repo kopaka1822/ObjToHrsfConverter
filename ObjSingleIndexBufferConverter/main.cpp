@@ -11,7 +11,7 @@
 // -nolight => skips light write
 // -noenv => skips env write
 // -nomesh => skips mesh generation
-// -transparent texture1 texture2 ... => forces textures to be seen as transparent ()
+// -transparent material1 material2 ... => forces materials to be seen as transparent (must be the material name)
 int main(int argc, char** argv) try
 {
 	if (argc < 3)
@@ -36,11 +36,15 @@ int main(int argc, char** argv) try
 		converter.removeComponent(hrsf::Component::Environment);
 	if (args.has("nomesh"))
 		converter.removeComponent(hrsf::Component::Mesh);
+	if (args.has("nolight"))
+		converter.removeComponent(hrsf::Component::Lights);
 	if(args.has("transparent"))
 	{
-		auto textures = args.getVector<std::string>("transparent");
-		for (const auto& t : textures)
-			converter.getTexConverter().setAlphaTexture(t);
+		auto names = args.getVector<std::string>("transparent");
+		for(const auto& name : names)
+		{
+			converter.setTransparentMaterial(name);
+		}
 	}
 
 	converter.convert(inputFilename, outputFilename);
@@ -53,3 +57,5 @@ catch (const std::exception& e)
 	Console::error(e.what());
 	return -1;
 }
+
+// san miguel args: D:\scenes\obj\miguel\san-miguel-low-poly.obj D:\scenes\converted\miguel\miguel -nocamera -nolight -noenv -nomaterial -transparent materialo

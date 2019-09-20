@@ -7,6 +7,7 @@
 #define BMF_GENERATORS
 #include <hrsf/SceneFormat.h>
 #include "TextureConverter.h"
+#include <unordered_set>
 
 using namespace prop;
 
@@ -20,7 +21,8 @@ public:
 
 	hrsf::Component OutComponents = hrsf::Component::All;
 	void removeComponent(hrsf::Component component);
-	
+	void setTransparentMaterial(const std::string& name);
+
 	TextureConverter& getTexConverter();
 
 	// properties
@@ -44,6 +46,7 @@ private:
 	tinyobj::attrib_t m_attrib;
 	std::vector<tinyobj::shape_t> m_shapes;
 	std::vector<tinyobj::material_t> m_materials;
+	std::unordered_set<std::string> m_transparentMaterials;
 
 	size_t m_normalsGenerated = 0;
 	size_t m_texcoordsGenerated = 0;

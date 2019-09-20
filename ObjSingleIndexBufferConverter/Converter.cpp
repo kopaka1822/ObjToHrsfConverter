@@ -74,7 +74,10 @@ void Converter::save(std::filesystem::path dst)
 {
 	Console::info("converting to hrsf");
 
-	auto materials = getMaterials();
+	std::vector<hrsf::Material> materials;
+	// materials are also required for mesh splitting
+	if(OutComponents & hrsf::Component::Mesh || OutComponents & hrsf::Component::Material)
+		materials = getMaterials();
 
 	std::vector<hrsf::Mesh> mesh;
 	if(OutComponents & hrsf::Component::Mesh)
@@ -170,10 +173,13 @@ std::vector<hrsf::Mesh> Converter::convertMesh(const std::vector<hrsf::Material>
 		});
 
 		bmf::BinaryMesh32 mesh(attribs, std::move(vertices), std::move(indices), std::move(shapes));// , std::vector<glm::vec3>{glm::vec3(0.0f)});
-		mesh.generateBoundingBoxes();
 
 		// convert to 16 bit mesh
-		for(auto& m : mesh.force16BitIndices())
+		auto smallMeshes = mesh.force16BitIndices();
+		if (smallMeshes.size() > 1)
+			Console::info("forced 16 bit indices");
+
+		for(auto& m : smallMeshes)
 		{
 			meshes.emplace_back(std::move(m));
 		}
@@ -242,6 +248,12 @@ std::vector<hrsf::Mesh> Converter::convertMesh(const std::vector<hrsf::Material>
 	if (result.empty())
 		throw std::runtime_error("no mesh available");
 
+	Console::info("generating bounding volumes");
+	for(auto& m : result)
+	{
+		m.triangle.generateBoundingVolumes();
+	}
+
 	return result;
 }
 
@@ -298,10 +310,13 @@ std::vector<hrsf::Material> Converter::getMaterials() const
 		// is transparent?
 		bool isTransparent = false;
 		if (mat.data.occlusion < 1.0f) isTransparent = true;
-		if (!mat.textures.occlusion.empty()) isTransparent = true;
-		// has diffuse texture alpha channel?
-		if (!isTransparent && !mat.textures.diffuse.empty())
-			isTransparent = m_texConvert.hasAlpha(mat.textures.diffuse);
+		if (!mat.textures.occlusion.empty()) isTransparent |= true;
+		if (!mat.textures.diffuse.empty() && m_texConvert.hasAlpha(mat.textures.diffuse))
+			isTransparent |= true;
+
+		// forced by user
+		if (m_transparentMaterials.find(mat.name) != m_transparentMaterials.end())
+			isTransparent |= true;
 
 		if (isTransparent)
 			mat.data.flags |= hrsf::MaterialData::Transparent;
@@ -343,6 +358,11 @@ void Converter::printStats() const
 void Converter::removeComponent(hrsf::Component component)
 {
 	OutComponents = hrsf::Component(uint32_t(OutComponents) & ~uint32_t(component));
+}
+
+void Converter::setTransparentMaterial(const std::string& name)
+{
+	m_transparentMaterials.insert(name);
 }
 
 TextureConverter& Converter::getTexConverter()

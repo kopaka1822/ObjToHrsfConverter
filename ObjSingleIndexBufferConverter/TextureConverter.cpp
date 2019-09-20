@@ -102,14 +102,13 @@ TextureConverter::path TextureConverter::convertTexture(const path& filename, bo
 	// add new entry
 	m_convertedMap[srcPath] = dstPath;
 
-	if (!m_writeFiles) return dstPath;
-
 	// assure that the directory is available
 	std::filesystem::create_directories(dstPath.parent_path());
 
 	// input is relative path
 	if(filename.extension() == ".dds")
 	{
+		if (!m_writeFiles) return dstPath;
 		// assume already converted
 		std::filesystem::copy_file(srcPath, dstPath);
 		return dstPath;
@@ -118,9 +117,15 @@ TextureConverter::path TextureConverter::convertTexture(const path& filename, bo
 	// load png, jpg etc. with stb
 	bool hasNativeAlpha = false;
 	auto tex = loadStbiImage(srcPath.string(), expectSrgb, hasNativeAlpha);
+	if (hasNativeAlpha) m_alphaMap.insert(dstPath);
+
+	if (!m_writeFiles) return dstPath;
+
+	if (std::filesystem::exists(dstPath))
+		return dstPath; // dont convert again
 
 	// create levels for mipmaps
-	
+
 	// generate mip maps
 	auto mipTex = gli::generate_mipmaps(tex, gli::filter::FILTER_LINEAR);
 
@@ -129,8 +134,6 @@ TextureConverter::path TextureConverter::convertTexture(const path& filename, bo
 	{
 		throw std::runtime_error("could not save " + dstPathString);
 	}
-
-	if (hasNativeAlpha) m_alphaMap.insert(dstPath);
 
 	return dstPath;
 }
