@@ -59,3 +59,6 @@ catch (const std::exception& e)
 }
 
 // san miguel args: D:\scenes\obj\miguel\san-miguel-low-poly.obj D:\scenes\converted\miguel\miguel -nocamera -nolight -noenv -nomaterial -transparent materialo
+
+// bistro e: D:\scenes\obj\bistro\Exterior\exterior.obj D:\scenes\converted\bistro\bistro\exterior
+// bistro e: D:\scenes\obj\bistro\Interior\interior.obj D:\scenes\converted\bistro\bistro\interior

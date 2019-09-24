@@ -57,13 +57,13 @@ gli::texture2d loadStbiImage(const std::string& filename, bool expectSrgb, bool&
 {
 	int x, y, comp;
 	hasNativeAlpha = false;
-	auto data = stbi_load(filename.c_str(), &x, &y, &comp, 0);
+	auto data = stbi_load(filename.c_str(), &x, &y, &comp, 4);
 	if (data == nullptr)
 		throw std::runtime_error("could not load " + filename);
 
 	// convert to gli image
 	gli::texture2d gliTex(
-		expectSrgb?getSrbFormat(comp):getUnormFormat(comp),
+		expectSrgb?getSrbFormat(4):getUnormFormat(4),
 		gli::extent2d(x, y),
 		CountMips(x, y), 
 		gli::texture::swizzles_type()
@@ -72,7 +72,7 @@ gli::texture2d loadStbiImage(const std::string& filename, bool expectSrgb, bool&
 	if (comp == 4) hasNativeAlpha = true;
 
 	const auto size = gliTex.size(0);
-	if (size != size_t(x * y * comp))
+	if (size != size_t(x * y * 4))
 	{
 		throw std::runtime_error("expected other gli size");
 	}
@@ -81,9 +81,9 @@ gli::texture2d loadStbiImage(const std::string& filename, bool expectSrgb, bool&
 	stbi_image_free(data);
 
 	// RGB formats are deprecated => convert to rgba
-	if (comp != 3) return gliTex;
-
-	return gli::convert(gliTex, expectSrgb?getSrbFormat(4):getUnormFormat(4));
+	//if (comp != 3) return gliTex;
+	return gliTex;
+	//return gli::convert(gliTex, expectSrgb?getSrbFormat(4):getUnormFormat(4));
 }
 
 TextureConverter::path TextureConverter::convertTexture(const path& filename, bool expectSrgb)
