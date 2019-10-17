@@ -13,6 +13,9 @@
       <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
       <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
     </Filter>
+    <Filter Include="image">
+      <UniqueIdentifier>{f837777d-14e7-4eb3-b721-44141bea875d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp">
@@ -49,6 +52,12 @@
     </ClInclude>
     <ClInclude Include="TextureConverter.h">
       <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\image\ImageFramework.h">
+      <Filter>image</Filter>
+    </ClInclude>
+    <ClInclude Include="..\image\Pipeline.h">
+      <Filter>image</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

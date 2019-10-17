@@ -1,92 +1,20 @@
 #include "TextureConverter.h"
 #include <iostream>
+#include "../image/ImageFramework.h"
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "../stb_image.h"
-
-#include "../gli/gli/gli.hpp"
-#include "../gli/gli/generate_mipmaps.hpp"
+static ImageFramework::Model s_image("../image/ImageConsole.exe");
 
 TextureConverter::TextureConverter(path srcPath, path dstPath, bool writeFiles)
 	:
 m_srcRoot(srcPath),
 m_dstRoot(dstPath),
 m_writeFiles(writeFiles)
-{}
-
-gli::texture2d::format_type getSrbFormat(int components)
 {
-	switch (components)
-	{
-	case 1: return gli::format::FORMAT_R8_SRGB_PACK8;
-	case 2: return gli::format::FORMAT_RG8_SRGB_PACK8;
-	case 3: return gli::format::FORMAT_RGB8_SRGB_PACK8;
-	case 4: return gli::format::FORMAT_RGBA8_SRGB_PACK8;
-	}
-	return gli::FORMAT_UNDEFINED;
+	//s_image.SetExportQuality(20);
+	s_image.SetExportQuality(90);
 }
 
-gli::texture2d::format_type getUnormFormat(int components)
-{
-	switch (components)
-	{
-	case 1: return gli::format::FORMAT_R8_UNORM_PACK8;
-	case 2: return gli::format::FORMAT_RG8_UNORM_PACK8;
-	case 3: return gli::format::FORMAT_RGB8_UNORM_PACK8;
-	case 4: return gli::format::FORMAT_RGBA8_UNORM_PACK8;
-	}
-	return gli::FORMAT_UNDEFINED;
-}
-
-uint32_t CountMips(uint32_t width, uint32_t height)
-{
-	if (width == 0 || height == 0)
-		return 0;
-
-	uint32_t count = 1;
-	while (width > 1 || height > 1)
-	{
-		width >>= 1;
-		height >>= 1;
-		count++;
-	}
-	return count;
-}
-
-gli::texture2d loadStbiImage(const std::string& filename, bool expectSrgb, bool& hasNativeAlpha)
-{
-	int x, y, comp;
-	hasNativeAlpha = false;
-	auto data = stbi_load(filename.c_str(), &x, &y, &comp, 4);
-	if (data == nullptr)
-		throw std::runtime_error("could not load " + filename);
-
-	// convert to gli image
-	gli::texture2d gliTex(
-		expectSrgb?getSrbFormat(4):getUnormFormat(4),
-		gli::extent2d(x, y),
-		CountMips(x, y), 
-		gli::texture::swizzles_type()
-	);
-
-	if (comp == 4) hasNativeAlpha = true;
-
-	const auto size = gliTex.size(0);
-	if (size != size_t(x * y * 4))
-	{
-		throw std::runtime_error("expected other gli size");
-	}
-
-	memcpy(gliTex.data(0, 0, 0), data, size);
-	stbi_image_free(data);
-
-	// RGB formats are deprecated => convert to rgba
-	//if (comp != 3) return gliTex;
-	return gliTex;
-	//return gli::convert(gliTex, expectSrgb?getSrbFormat(4):getUnormFormat(4));
-}
-
-TextureConverter::path TextureConverter::convertTexture(const path& filename, bool expectSrgb)
+TextureConverter::path TextureConverter::convertTexture(const path& filename)
 {
 	if (filename.empty()) return "";
 
@@ -105,34 +33,20 @@ TextureConverter::path TextureConverter::convertTexture(const path& filename, bo
 	// assure that the directory is available
 	std::filesystem::create_directories(dstPath.parent_path());
 
-	// input is relative path
-	if(filename.extension() == ".dds")
+	// open file
+	s_image.ClearImages();
+	s_image.OpenImage(srcPath.string());
+	const char* dstFormat = "RGBA_DXT1_SRGB"; // "RGBA_BP_SRGB"
+	if(s_image.IsAlpha())
 	{
-		if (!m_writeFiles) return dstPath;
-		// assume already converted
-		std::filesystem::copy_file(srcPath, dstPath);
-		return dstPath;
+		m_alphaMap.insert(dstPath);
+		dstFormat = "RGBA_DXT3_SRGB";
 	}
 
-	// load png, jpg etc. with stb
-	bool hasNativeAlpha = false;
-	auto tex = loadStbiImage(srcPath.string(), expectSrgb, hasNativeAlpha);
-	if (hasNativeAlpha) m_alphaMap.insert(dstPath);
-
-	if (!m_writeFiles) return dstPath;
-
-	if (std::filesystem::exists(dstPath))
-		return dstPath; // dont convert again
-
-	// create levels for mipmaps
-
-	// generate mip maps
-	auto mipTex = gli::generate_mipmaps(tex, gli::filter::FILTER_LINEAR);
-
-	auto dstPathString = dstPath.string();
-	if(!gli::save_dds(mipTex, dstPathString.c_str()))
+	if(!std::filesystem::exists(dstPath))
 	{
-		throw std::runtime_error("could not save " + dstPathString);
+		s_image.GenMipmaps();
+		s_image.Export(dstPath.string(), dstFormat);
 	}
 
 	return dstPath;
@@ -141,13 +55,4 @@ TextureConverter::path TextureConverter::convertTexture(const path& filename, bo
 bool TextureConverter::hasAlpha(const path& dstFilePath)
 {
 	return m_alphaMap.find(dstFilePath) != m_alphaMap.end();
-}
-
-void TextureConverter::setAlphaTexture(const path& srcFilePath)
-{
-	if (srcFilePath.empty()) return;
-
-	auto srcPath = m_srcRoot / srcFilePath;
-	auto dstPath = (m_dstRoot / srcFilePath).replace_extension(".dds");
-	m_alphaMap.insert(dstPath);
 }

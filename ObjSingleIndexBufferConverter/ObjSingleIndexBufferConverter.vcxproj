@@ -139,6 +139,8 @@
     <ClCompile Include="TextureConverter.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="..\image\ImageFramework.h" />
+    <ClInclude Include="..\image\Pipeline.h" />
     <ClInclude Include="ArgumentSet.h" />
     <ClInclude Include="Console.h" />
     <ClInclude Include="Converter.h" />
