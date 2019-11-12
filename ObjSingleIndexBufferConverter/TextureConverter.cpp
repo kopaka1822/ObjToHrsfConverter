@@ -36,11 +36,10 @@ TextureConverter::path TextureConverter::convertTexture(const path& filename)
 	// open file
 	s_image.ClearImages();
 	s_image.OpenImage(srcPath.string());
-	const char* dstFormat = "RGBA_DXT1_SRGB"; // "RGBA_BP_SRGB"
+	const char* dstFormat = "RGBA8_SRGB";
 	if(s_image.IsAlpha())
 	{
 		m_alphaMap.insert(dstPath);
-		dstFormat = "RGBA_DXT3_SRGB";
 	}
 
 	if(!std::filesystem::exists(dstPath))

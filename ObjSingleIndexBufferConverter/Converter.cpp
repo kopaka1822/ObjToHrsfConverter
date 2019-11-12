@@ -57,17 +57,6 @@ void Converter::load(std::filesystem::path src)
 
 	if (m_attrib.vertices.empty())
 		throw std::runtime_error("no vertices found");
-
-	// test if all materials have zero ambient => ambient should be set to 1.0
-	if (std::all_of(m_materials.begin(), m_materials.end(), [](const tinyobj::material_t& mat)
-	{
-		return mat.ambient[0] == 0.0f && mat.ambient[1] == 0.0f && mat.ambient[2] == 0.0f;
-	}))
-	{
-		Console::warning("all materials have zero ambient color => setting it to 1");
-		for (auto& mat : m_materials)
-			mat.ambient[0] = mat.ambient[1] = mat.ambient[2] = 1.0f;
-	}
 }
 
 void Converter::save(std::filesystem::path dst)
@@ -289,29 +278,36 @@ std::vector<hrsf::Material> Converter::getMaterials() const
 		auto& mat = res.back();
 		mat.name = m.name;
 		// textures
-		mat.textures.diffuse = m_texConvert.convertTexture(m.diffuse_texname);
-		mat.textures.ambient = m_texConvert.convertTexture(m.ambient_texname);
+		mat.textures.albedo = m_texConvert.convertTexture(m.diffuse_texname);
 		mat.textures.occlusion = m_texConvert.convertTexture(m.alpha_texname);
 		mat.textures.specular = m_texConvert.convertTexture(m.specular_texname);
 		// remaining stuff
 		mat.data = hrsf::MaterialData::Default();
-		std::copy(m.diffuse, m.diffuse + 3, glm::value_ptr(mat.data.diffuse));
-		std::copy(m.ambient, m.ambient + 3, glm::value_ptr(mat.data.ambient));
-		std::copy(m.specular, m.specular + 3, glm::value_ptr(mat.data.specular));
+		std::copy(m.diffuse, m.diffuse + 3, glm::value_ptr(mat.data.albedo));
+		mat.data.specular = (m.specular[0] + m.specular[1] + m.specular[2]) / 3.0f;
 		mat.data.occlusion = m.dissolve;
 		std::copy(m.emission, m.emission + 3, glm::value_ptr(mat.data.emission));
-		mat.data.gloss = m.shininess;
-		mat.data.roughness = m.roughness;
+		std::copy(m.transmittance, m.transmittance + 3, glm::value_ptr(mat.data.translucency));;
+		mat.data.metalness = m.metallic;
+		if(m.roughness != 0.0f)
+		{
+			mat.data.roughness = m.roughness;
+		}
+		else
+		{
+			// map shininess to roughness
+			mat.data.roughness = sqrt(2.0f / (m.shininess + 2.0f));
+		}
 		mat.data.flags = 0;
 
-		if (m.illum >= 3) // raytrace on flag
-			mat.data.flags |= hrsf::MaterialData::Flags::Reflection;
+		//if (m.illum >= 3) // raytrace on flag
+			//mat.data.flags |= hrsf::MaterialData::Flags::Reflection;
 
 		// is transparent?
 		bool isTransparent = false;
 		if (mat.data.occlusion < 1.0f) isTransparent = true;
 		if (!mat.textures.occlusion.empty()) isTransparent |= true;
-		if (!mat.textures.diffuse.empty() && m_texConvert.hasAlpha(mat.textures.diffuse))
+		if (!mat.textures.albedo.empty() && m_texConvert.hasAlpha(mat.textures.albedo))
 			isTransparent |= true;
 
 		// forced by user
