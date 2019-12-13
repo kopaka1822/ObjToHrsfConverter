@@ -93,11 +93,16 @@ std::vector<hrsf::Mesh> Converter::convertMesh(const std::vector<hrsf::Material>
 	if(UseTexcoords)
 		requestedAttribs |= bmf::Texcoord0;
 
+
+
 	Console::info("creating meshes");
 	// convert all shapes into seperate binary meshes
 	std::vector<bmf::BinaryMesh16> meshes;
 	for (const auto& s : m_shapes)
 	{
+		std::vector<bmf::BinaryMesh32> bigMeshes;
+		std::vector<bmf::BinaryMesh16> smallMeshes;
+
 		uint32_t attribs = bmf::Position;
 		if (s.mesh.indices[0].normal_index >= 0 && UseNormals)
 			attribs |= bmf::Normal;
@@ -127,7 +132,8 @@ std::vector<hrsf::Mesh> Converter::convertMesh(const std::vector<hrsf::Material>
 			}
 			if(attribs & bmf::Texcoord0)
 			{
-				vertices.push_back(m_attrib.texcoords[2 * i.texcoord_index]);
+				// reverse x as well
+				vertices.push_back(1.0f - m_attrib.texcoords[2 * i.texcoord_index]);
 				// directX reverses y coordinate
 				vertices.push_back(1.0f - m_attrib.texcoords[2 * i.texcoord_index + 1]);
 			}
@@ -139,33 +145,100 @@ std::vector<hrsf::Mesh> Converter::convertMesh(const std::vector<hrsf::Material>
 		else
 			materialId = uint32_t(s.mesh.material_ids[0]);
 
-		if (s.mesh.material_ids.size() > 1 && Console::PrintWarning)
-		{
-			// are they all the same?
-			if(!std::all_of(s.mesh.material_ids.begin(), s.mesh.material_ids.end(), [materialId](auto id)
+		if (s.mesh.material_ids.size() > 1 && !std::all_of(s.mesh.material_ids.begin(), s.mesh.material_ids.end(), [materialId](auto id)
 			{
 				return id == int(materialId);
 			}))
-				Console::warning("shape has more than one material. Only the first one will be used");
+		{
+			Console::info("found multiple materials for one mesh");
+
+			decltype(vertices) newVertices;
+			decltype(indices) newIndices;
+			std::vector<bmf::Shape> shapes;
+
+			shapes.emplace_back(bmf::Shape{
+				0, 0,
+				0, 0,
+				0
+				});
+
+			// split mesh based on materials
+			auto lastMaterial = s.mesh.material_ids[0];
+			uint32_t curIndex = 0;
+
+			auto addShape = [&]()
+			{
+				shapes[0].indexCount = curIndex;
+				shapes[0].vertexCount = curIndex;
+				shapes[0].materialId = lastMaterial;
+				curIndex = 0;
+				bigMeshes.emplace_back(attribs, std::move(newVertices), std::move(newIndices), shapes);
+				newVertices.clear();
+				newIndices.clear();
+			};
+
+			for(size_t curFace = 0; curFace < indices.size() / 3; ++curFace)
+			{
+				if(s.mesh.material_ids[curFace] != lastMaterial)
+				{
+					// add this shape
+					addShape();
+					lastMaterial = s.mesh.material_ids[curFace];
+				}
+
+				// push back vertices
+				for(size_t curVertex = 0; curVertex < 3; ++curVertex)
+				{
+					auto idx = indices[curFace * 3 + curVertex];
+					for(size_t curStride = 0; curStride < stride; ++curStride)
+					{
+						newVertices.push_back(vertices[idx * stride + curStride]);
+					}
+
+				}
+				newIndices.push_back(curIndex++);
+				newIndices.push_back(curIndex++);
+				newIndices.push_back(curIndex++);
+			}
+
+			if (newVertices.size()) addShape();
+
+			for(auto& m : bigMeshes)
+			{
+				//m.verify();
+				m.removeDuplicateVertices(); // a lot of duplicate vertices
+				//m.verify();
+			}
 		}
+		else
+		{
+			if (materialId == uint32_t(-1)) // not material => choose default material
+				materialId = uint32_t(m_materials.size());
 
-		if (materialId == uint32_t(-1)) // not material => choose default material
-			materialId = uint32_t(m_materials.size());
+			std::vector<bmf::Shape> shapes;
 
-		std::vector<bmf::Shape> shapes;
-		shapes.emplace_back(bmf::Shape{
+			shapes.emplace_back(bmf::Shape{
 			0,
 			uint32_t(indices.size()),
 			0,
 			uint32_t(vertices.size() / stride),
 			materialId
-		});
+				});
 
-		bmf::BinaryMesh32 mesh(attribs, std::move(vertices), std::move(indices), std::move(shapes));// , std::vector<glm::vec3>{glm::vec3(0.0f)});
-
+			bigMeshes.emplace_back(attribs, std::move(vertices), std::move(indices), std::move(shapes));
+		}
+		
 		// convert to 16 bit mesh
-		auto smallMeshes = mesh.force16BitIndices();
-		if (smallMeshes.size() > 1)
+		for(auto& m : bigMeshes)
+		{
+			auto res = m.force16BitIndices();
+			for(auto& sm : res)
+			{
+				smallMeshes.emplace_back(std::move(sm));
+			}
+		}
+
+		if (smallMeshes.size() > bigMeshes.size())
 			Console::info("forced 16 bit indices");
 
 		for(auto& m : smallMeshes)
