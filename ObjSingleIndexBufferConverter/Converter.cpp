@@ -132,8 +132,7 @@ std::vector<hrsf::Mesh> Converter::convertMesh(const std::vector<hrsf::Material>
 			}
 			if(attribs & bmf::Texcoord0)
 			{
-				// reverse x as well
-				vertices.push_back(1.0f - m_attrib.texcoords[2 * i.texcoord_index]);
+				vertices.push_back(m_attrib.texcoords[2 * i.texcoord_index]);
 				// directX reverses y coordinate
 				vertices.push_back(1.0f - m_attrib.texcoords[2 * i.texcoord_index + 1]);
 			}

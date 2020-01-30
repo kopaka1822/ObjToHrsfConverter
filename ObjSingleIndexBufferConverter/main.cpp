@@ -58,7 +58,7 @@ catch (const std::exception& e)
 	return -1;
 }
 
-// san miguel args: D:\scenes\obj\miguel\san-miguel-low-poly.obj D:\scenes\converted\miguel\miguel -nocamera -nolight -noenv -nomaterial -transparent materialo
-
+// san miguel args: D:\scenes\obj\miguel\san-miguel-low-poly.obj D:\scenes\converted\miguel\miguel -nocamera -nolight -noenv -nomaterial -transparent materialo materialn
+// D:\scenes\obj\mine\mine.obj D:\scenes\converted\mine\mine -nocamera -nolight -noenv -nomaterial -transparent crystal1 crystal2 crystal3 crystal4 old_lamp_glass star_glass web_center web_center.001 web_corner web_hanging web_hanging.001 web_thicc
 // bistro e: D:\scenes\obj\bistro\Exterior\exterior.obj D:\scenes\converted\bistro\bistro\exterior
 // bistro e: D:\scenes\obj\bistro\Interior\interior.obj D:\scenes\converted\bistro\bistro\interior
