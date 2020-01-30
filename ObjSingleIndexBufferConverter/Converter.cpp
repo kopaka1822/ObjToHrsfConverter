@@ -57,6 +57,23 @@ void Converter::load(std::filesystem::path src)
 
 	if (m_attrib.vertices.empty())
 		throw std::runtime_error("no vertices found");
+
+	// fix material texture paths
+	for(auto& m : m_materials)
+	{
+		fixPath(m.diffuse_texname);
+		fixPath(m.alpha_texname);
+		fixPath(m.ambient_texname);
+		fixPath(m.bump_texname);
+		fixPath(m.displacement_texname);
+		fixPath(m.metallic_texname);
+		fixPath(m.normal_texname);
+		fixPath(m.reflection_texname);
+		fixPath(m.roughness_texname);
+		fixPath(m.sheen_texname);
+		fixPath(m.specular_highlight_texname);
+		fixPath(m.specular_texname);
+	}
 }
 
 void Converter::save(std::filesystem::path dst)
@@ -406,6 +423,12 @@ hrsf::Environment Converter::getEnvironment() const
 	// default white background
 	e.color = { 1.0f, 1.0f, 1.0f };
 	return e;
+}
+
+void Converter::fixPath(std::string& path)
+{
+	if (path.empty()) return;
+	if (path[0] == '/') path = path.substr(1);
 }
 
 void Converter::printStats() const

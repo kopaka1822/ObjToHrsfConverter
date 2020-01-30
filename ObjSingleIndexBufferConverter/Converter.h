@@ -42,6 +42,8 @@ private:
 	std::vector<hrsf::Light> getLights() const;
 	std::vector<hrsf::Material> getMaterials() const;
 	hrsf::Environment getEnvironment() const;
+
+	static void fixPath(std::string& path);
 private:
 	tinyobj::attrib_t m_attrib;
 	std::vector<tinyobj::shape_t> m_shapes;
