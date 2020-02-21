@@ -18,6 +18,7 @@ public:
 	void convert(std::filesystem::path src, std::filesystem::path dst);
 	
 	void printStats() const;
+	void setAxisFlips(std::vector<int> flips) { m_flips = move(flips); }
 
 	hrsf::Component OutComponents = hrsf::Component::All;
 	void removeComponent(hrsf::Component component);
@@ -49,6 +50,7 @@ private:
 	std::vector<tinyobj::shape_t> m_shapes;
 	std::vector<tinyobj::material_t> m_materials;
 	std::unordered_set<std::string> m_transparentMaterials;
+	std::vector<int> m_flips;
 
 	size_t m_normalsGenerated = 0;
 	size_t m_texcoordsGenerated = 0;

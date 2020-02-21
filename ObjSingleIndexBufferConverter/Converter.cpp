@@ -115,8 +115,10 @@ std::vector<hrsf::Mesh> Converter::convertMesh(const std::vector<hrsf::Material>
 	Console::info("creating meshes");
 	// convert all shapes into seperate binary meshes
 	std::vector<bmf::BinaryMesh16> meshes;
+	size_t curShape = 0;
 	for (const auto& s : m_shapes)
 	{
+		++curShape;
 		std::vector<bmf::BinaryMesh32> bigMeshes;
 		std::vector<bmf::BinaryMesh16> smallMeshes;
 
@@ -262,7 +264,7 @@ std::vector<hrsf::Mesh> Converter::convertMesh(const std::vector<hrsf::Material>
 			meshes.emplace_back(std::move(m));
 		}
 		
-		Console::progress("meshes", meshes.size(), m_shapes.size());
+		Console::progress("meshes", curShape, m_shapes.size());
 	}
 
 	// missing attributes generators
@@ -297,6 +299,32 @@ std::vector<hrsf::Mesh> Converter::convertMesh(const std::vector<hrsf::Material>
 	{
 		m.changeAttributes(requestedAttribs, generators);
 		Console::progress("meshes", ++curCount, meshes.size());
+	}
+
+	if(!m_flips.empty())
+	{
+		Console::info("flipping geometry");
+
+		const auto stride = bmf::getAttributeElementStride(requestedAttribs);
+		const auto normalOffset = bmf::getAttributeElementOffset(requestedAttribs, bmf::Attributes::Normal);
+
+		for(size_t i = 0; i < m_flips.size(); i += 2)
+		{
+			const auto axis1 = m_flips[i];
+			const auto axis2 = m_flips[i + 1];
+
+			for(auto& m : meshes)
+			{
+				auto& verts = m.getVertices();
+				for(float* v = verts.data(), *end = verts.data() + verts.size(); v < end; v += stride)
+				{
+					std::swap(v[axis1], v[axis2]);
+					std::swap(v[normalOffset + axis1], v[normalOffset + axis2]);
+				}
+
+				Console::progress("meshes (flip)", ++curCount, meshes.size());
+			}
+		}
 	}
 
 	Console::info("merging meshes");

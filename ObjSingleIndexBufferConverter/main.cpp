@@ -12,6 +12,7 @@
 // -noenv => skips env write
 // -nomesh => skips mesh generation
 // -transparent material1 material2 ... => forces materials to be seen as transparent (must be the material name)
+// -flipaxis axis1 axis2 .. => flips the position axes
 int main(int argc, char** argv) try
 {
 	if (argc < 3)
@@ -45,6 +46,12 @@ int main(int argc, char** argv) try
 		{
 			converter.setTransparentMaterial(name);
 		}
+	}
+	if(args.has("flipaxis"))
+	{
+		auto swaps = args.getVector<int>("flipaxis");
+		if (swaps.size() % 2 != 0) throw std::runtime_error("number of flips must be multiple of two");
+		converter.setAxisFlips(move(swaps));
 	}
 
 	converter.convert(inputFilename, outputFilename);
