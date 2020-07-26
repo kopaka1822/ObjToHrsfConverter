@@ -396,16 +396,17 @@ std::vector<hrsf::Material> Converter::getMaterials() const
 		mat.name = m.name;
 		// textures
 		mat.textures.albedo = m_texConvert.convertTexture(m.diffuse_texname);
-		mat.textures.occlusion = m_texConvert.convertTexture(m.alpha_texname);
+		mat.textures.coverage = m_texConvert.convertTexture(m.alpha_texname);
 		mat.textures.specular = m_texConvert.convertTexture(m.specular_texname);
 		// remaining stuff
 		mat.data = hrsf::MaterialData::Default();
 		std::copy(m.diffuse, m.diffuse + 3, glm::value_ptr(mat.data.albedo));
 		mat.data.specular = (m.specular[0] + m.specular[1] + m.specular[2]) / 3.0f;
-		mat.data.occlusion = m.dissolve;
+		mat.data.coverage = m.dissolve;
 		std::copy(m.emission, m.emission + 3, glm::value_ptr(mat.data.emission));
-		std::copy(m.transmittance, m.transmittance + 3, glm::value_ptr(mat.data.translucency));;
+		mat.data.translucency = (m.transmittance[0] + m.transmittance[1] + m.transmittance[2]) / 3.0f;
 		mat.data.metalness = m.metallic;
+		mat.data.ior = m.ior;
 		if(m.roughness != 0.0f)
 		{
 			mat.data.roughness = m.roughness;
@@ -417,13 +418,15 @@ std::vector<hrsf::Material> Converter::getMaterials() const
 		}
 		mat.data.flags = 0;
 
+
 		//if (m.illum >= 3) // raytrace on flag
 			//mat.data.flags |= hrsf::MaterialData::Flags::Reflection;
 
 		// is transparent?
 		bool isTransparent = false;
-		if (mat.data.occlusion < 1.0f) isTransparent = true;
-		if (!mat.textures.occlusion.empty()) isTransparent |= true;
+		if (mat.data.coverage < 1.0f) isTransparent = true;
+		if (mat.data.translucency > 0.0f) isTransparent = 0.0f;
+		if (!mat.textures.coverage.empty()) isTransparent |= true;
 		if (!mat.textures.albedo.empty() && m_texConvert.hasAlpha(mat.textures.albedo))
 			isTransparent |= true;
 
